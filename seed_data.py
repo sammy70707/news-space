@@ -225,24 +225,6 @@ def seed_satellites(cursor):
             'Mars Surface / Orbit'
         ),
         (
-            'Voyager 2',
-            None,
-            '1977-08-20', 'NASA (USA)', 'Active',
-            'Voyager 2 is the only spacecraft to have visited all four giant planets — Jupiter, Saturn, Uranus, and Neptune. Launched in 1977, it is now in interstellar space, still transmitting scientific data from over 20 billion km away.',
-            '/static/images/voyager.png',
-            'Interstellar Space'
-        ),
-        (
-            'Voyager 1',
-            None,
-            '1977-09-05', 'NASA (USA)', 'Active',
-            'Voyager 1 is the farthest human-made object from Earth. After flyby missions of Jupiter and Saturn, it entered interstellar space in 2012 and continues to send data from over 24 billion km away. It carries the famous Golden Record.',
-            '/static/images/voyager.png',
-            'Interstellar Space'
-        ),
-
-
-        (
             'Mir Space Station',
             pid.get('Earth'),
             '1986-02-20', 'Soviet Union / Russia', 'Completed',
