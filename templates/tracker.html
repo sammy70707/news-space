@@ -1,0 +1,804 @@
+{% extends 'base.html' %}
+{% set page_title = 'Live Tracker' %}
+{% set page_description = 'Track satellites in real-time on a world map with orbital ground tracks.' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tracker.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>📡 LIVE SATELLITE TRACKER</h2>
+        <p class="subtitle">Real-time ground track visualization — tracking Earth-orbiting missions across LEO, MEO, and GEO.</p>
+    </div>
+
+    <div class="tracker-wrapper">
+        <!-- Main Area: Map + Satellite list -->
+        <div class="tracker-main">
+            <!-- World Map Canvas -->
+            <div class="map-container" id="mapContainer">
+                <canvas id="trackerCanvas"></canvas>
+
+                <!-- HUD Top -->
+                <div class="map-hud-top">
+                    <span class="hud-title">3D Orthographic Globe</span>
+                    <span class="live-indicator">LIVE</span>
+                    <span class="utc-clock" id="utcClock">00:00:00 UTC</span>
+                </div>
+
+                <!-- HUD Bottom -->
+                <div class="map-hud-bottom">
+                    <div class="map-legend" id="mapLegend"></div>
+                    <span class="map-coords" id="mapCoords">--° N, --° E</span>
+                </div>
+
+                <!-- Tooltip -->
+                <div class="sat-tooltip" id="satTooltip">
+                    <h4 id="ttName"></h4>
+                    <div class="tt-row"><span class="tt-label">Status</span><span class="tt-value" id="ttStatus"></span></div>
+                    <div class="tt-row"><span class="tt-label">Altitude</span><span class="tt-value" id="ttAlt"></span></div>
+                    <div class="tt-row"><span class="tt-label">Velocity</span><span class="tt-value" id="ttVel"></span></div>
+                    <div class="tt-row"><span class="tt-label">Lat / Lon</span><span class="tt-value" id="ttPos"></span></div>
+                    <div class="tt-row"><span class="tt-label">Orbit</span><span class="tt-value" id="ttOrbit"></span></div>
+                    <div class="tt-row"><span class="tt-label">Agency</span><span class="tt-value" id="ttAgency"></span></div>
+                </div>
+            </div>
+
+            <!-- Satellite List Panel -->
+            <div class="sat-list-panel" id="satListPanel">
+                <div class="tracker-summary">
+                    <div class="sum-stat">
+                        <div class="num" id="totalCount">0</div>
+                        <div class="label">Tracked</div>
+                    </div>
+                    <div class="sum-stat">
+                        <div class="num" id="activeCount">0</div>
+                        <div class="label">Active</div>
+                    </div>
+                    <div class="sum-stat">
+                        <div class="num" id="leoCount">0</div>
+                        <div class="label">In LEO</div>
+                    </div>
+                </div>
+                <!-- Cards injected by JS -->
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="tracker-stats-bar">
+            <div class="ts-card">
+                <div class="ts-icon" style="background:rgba(59,130,246,0.1);">🌍</div>
+                <div class="ts-data">
+                    <div class="ts-value" id="statOrbits">0</div>
+                    <div class="ts-label">Total Orbits Today</div>
+                </div>
+            </div>
+            <div class="ts-card">
+                <div class="ts-icon" style="background:rgba(16,185,129,0.1);">📡</div>
+                <div class="ts-data">
+                    <div class="ts-value" id="statSignal">0</div>
+                    <div class="ts-label">Signals Received</div>
+                </div>
+            </div>
+            <div class="ts-card">
+                <div class="ts-icon" style="background:rgba(139,92,246,0.1);">🛰️</div>
+                <div class="ts-data">
+                    <div class="ts-value" id="statDistance">0 km</div>
+                    <div class="ts-label">Farthest Active Satellite</div>
+                </div>
+            </div>
+            <div class="ts-card">
+                <div class="ts-icon" style="background:rgba(236,72,153,0.1);">⏱️</div>
+                <div class="ts-data">
+                    <div class="ts-value" id="statUptime">0d</div>
+                    <div class="ts-label">ISS Mission Elapsed</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/world_data.js') }}"></script>
+<script>
+// ═══════════════════════════════════════════════════
+// LIVE SATELLITE TRACKER — 3D Rotating Globe
+// ═══════════════════════════════════════════════════
+
+const canvas = document.getElementById('trackerCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('mapContainer');
+const tooltip = document.getElementById('satTooltip');
+
+// Satellite data with realistic orbital parameters
+const sats = [
+{% for sat in satellites %}
+{% set otype = sat.orbit_type or '' %}
+{% if 'Mars' not in otype and 'Lunar' not in otype and 'Jupiter' not in otype and 'Saturn' not in otype and 'Interstellar' not in otype and 'Heliocentric' not in otype and 'Kuiper' not in otype and 'L1' not in otype and 'L2' not in otype %}
+{
+    id: {{ sat.id }},
+    name: "{{ sat.name|replace('"', '\\"') }}",
+    status: "{{ sat.status }}",
+    orbit: "{{ sat.orbit_type or 'Unknown' }}",
+    agency: "{{ sat.agency|replace('"', '\\"') }}",
+    launched: "{{ sat.launch_date or 'N/A' }}",
+    {% set idx = loop.index0 %}
+    {% if 'LEO' in otype or 'Low Earth' in otype %}
+    inc: {{ [51.6, 28.5, 97.4, 51.6, 51.6, 97.0, 28.5, 51.6, 97.4, 28.5][idx % 10] }},
+    alt: {{ [408, 547, 710, 400, 585, 680, 500, 420, 600, 540][idx % 10] }},
+    period: {{ [92.7, 95.5, 99.0, 92.0, 96.5, 98.0, 94.0, 92.5, 97.0, 95.0][idx % 10] }},
+    {% elif 'Geostationary' in otype or 'GEO' in otype %}
+    inc: 0.1, alt: 35786, period: 1436,
+    {% elif 'Sun-Synchronous' in otype %}
+    inc: {{ [97.4, 98.2, 97.8][idx % 3] }},
+    alt: {{ [705, 680, 710][idx % 3] }},
+    period: {{ [98.8, 97.5, 99.0][idx % 3] }},
+    {% elif 'Elliptical' in otype %}
+    inc: {{ [28.5, 63.4, 51.6][idx % 3] }},
+    alt: {{ [600, 1200, 800][idx % 3] }},
+    period: {{ [96.0, 120.0, 100.0][idx % 3] }},
+    {% elif 'Medium Earth' in otype or 'MEO' in otype %}
+    inc: {{ [55.0, 56.0, 64.8][idx % 3] }},
+    alt: {{ [20200, 23222, 19130][idx % 3] }},
+    period: {{ [717, 845, 676][idx % 3] }},
+    {% else %}
+    inc: {{ [51.6, 28.5, 97.4, 63.4, 51.6][idx % 5] }}, alt: 800, period: 100,
+    {% endif %}
+    phase: {{ (idx * 37) % 360 }},
+},
+{% endif %}
+{% endfor %}
+];
+
+const COLORS = [
+    '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6',
+    '#06b6d4','#ec4899','#f97316','#14b8a6','#6366f1',
+    '#a855f7','#22d3ee','#84cc16','#e879f9','#fb923c',
+];
+sats.forEach((s, i) => s.color = COLORS[i % COLORS.length]);
+const trackable = sats.slice(); // all satellites are Earth-orbiting now
+
+// ── Canvas Setup ──────────────────────────────────
+
+function resize() {
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+const W = () => canvas.width / window.devicePixelRatio;
+const H = () => canvas.height / window.devicePixelRatio;
+
+// ── Globe rotation (slowly auto-rotate + draggable) ──
+let rotLon = 82;  // start centered over Asia so the eastern hemisphere is visible immediately
+let rotLat = 20;  // tilt angle (degrees)
+let dragging = false, dragX = 0, dragY = 0, startLon = 0, startLat = 0;
+let simTime = 0;
+let selectedSatId = null;
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function normalizeLongitude(lon) {
+    return ((lon + 540) % 360) - 180;
+}
+
+function shortestLongitudeDelta(from, to) {
+    return normalizeLongitude(normalizeLongitude(to) - normalizeLongitude(from));
+}
+
+function normalizeAngle(angle) {
+    while (angle <= -Math.PI) angle += Math.PI * 2;
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    return angle;
+}
+
+container.addEventListener('mousedown', e => {
+    if (e.target === canvas) {
+        dragging = true;
+        dragX = e.clientX; dragY = e.clientY;
+        startLon = rotLon; startLat = rotLat;
+    }
+});
+window.addEventListener('mousemove', e => {
+    if (dragging) {
+        rotLon = normalizeLongitude(startLon + (e.clientX - dragX) * 0.4);
+        rotLat = clamp(startLat - (e.clientY - dragY) * 0.4, -80, 80);
+    }
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+
+// ── 3D Projection Functions ───────────────────────
+
+const DEG = Math.PI / 180;
+
+function visibility(lon, lat, rLon, rLat) {
+    const λ = lon * DEG;
+    const φ = lat * DEG;
+    const λ0 = rLon * DEG;
+    const φ0 = rLat * DEG;
+    return Math.sin(φ0) * Math.sin(φ) + Math.cos(φ0) * Math.cos(φ) * Math.cos(λ - λ0);
+}
+
+// Orthographic projection: [lon, lat] → [x, y] on globe or null if backface
+function project(lon, lat, cx, cy, R, rLon, rLat) {
+    const λ = lon * DEG;
+    const φ = lat * DEG;
+    const λ0 = rLon * DEG;
+    const φ0 = rLat * DEG;
+    const cosC = visibility(lon, lat, rLon, rLat);
+    if (cosC < 0) return null; // backface
+
+    const x = R * Math.cos(φ) * Math.sin(λ - λ0);
+    const y = R * (Math.cos(φ0) * Math.sin(φ) - Math.sin(φ0) * Math.cos(φ) * Math.cos(λ - λ0));
+
+    return [cx + x, cy - y, cosC];
+}
+
+function getHorizonPoint(a, b, cx, cy, R, rLon, rLat) {
+    let lo = 0;
+    let hi = 1;
+    let loVis = visibility(a[0], a[1], rLon, rLat);
+
+    for (let i = 0; i < 18; i++) {
+        const mid = (lo + hi) / 2;
+        const lon = a[0] + (b[0] - a[0]) * mid;
+        const lat = a[1] + (b[1] - a[1]) * mid;
+        const midVis = visibility(lon, lat, rLon, rLat);
+
+        if ((loVis >= 0) === (midVis >= 0)) {
+            lo = mid;
+            loVis = midVis;
+        } else {
+            hi = mid;
+        }
+    }
+
+    const t = (lo + hi) / 2;
+    const lon = a[0] + (b[0] - a[0]) * t;
+    const lat = a[1] + (b[1] - a[1]) * t;
+    const projected = project(lon, lat, cx, cy, R, rLon, rLat);
+    return projected ? { x: projected[0], y: projected[1] } : null;
+}
+
+function traceHorizonArc(from, to, cx, cy, R) {
+    const fromAngle = Math.atan2(from.y - cy, from.x - cx);
+    const toAngle = Math.atan2(to.y - cy, to.x - cx);
+    const delta = normalizeAngle(toAngle - fromAngle);
+    const steps = Math.max(8, Math.ceil(Math.abs(delta) / (Math.PI / 32)));
+
+    for (let step = 1; step <= steps; step++) {
+        const angle = fromAngle + delta * (step / steps);
+        ctx.lineTo(cx + Math.cos(angle) * R, cy + Math.sin(angle) * R);
+    }
+}
+
+function drawLandmass(land, cx, cy, R) {
+    const pts = land.pts;
+    if (!pts || pts.length < 3) return;
+
+    const segments = [];
+    let current = [];
+
+    for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        const aVisible = visibility(a[0], a[1], rotLon, rotLat) >= 0;
+        const bVisible = visibility(b[0], b[1], rotLon, rotLat) >= 0;
+        const aPoint = aVisible ? project(a[0], a[1], cx, cy, R, rotLon, rotLat) : null;
+        const bPoint = bVisible ? project(b[0], b[1], cx, cy, R, rotLon, rotLat) : null;
+
+        if (aVisible && current.length === 0 && aPoint) {
+            current.push({ x: aPoint[0], y: aPoint[1] });
+        }
+
+        if (aVisible && bVisible && bPoint) {
+            current.push({ x: bPoint[0], y: bPoint[1] });
+            continue;
+        }
+
+        if (aVisible && !bVisible) {
+            const horizonPoint = getHorizonPoint(a, b, cx, cy, R, rotLon, rotLat);
+            if (horizonPoint) current.push(horizonPoint);
+            if (current.length >= 3) segments.push(current);
+            current = [];
+            continue;
+        }
+
+        if (!aVisible && bVisible) {
+            const horizonPoint = getHorizonPoint(a, b, cx, cy, R, rotLon, rotLat);
+            current = [];
+            if (horizonPoint) current.push(horizonPoint);
+            if (bPoint) current.push({ x: bPoint[0], y: bPoint[1] });
+        }
+    }
+
+    if (current.length >= 3) {
+        segments.push(current);
+    }
+
+    segments.forEach(segment => {
+        ctx.beginPath();
+        ctx.moveTo(segment[0].x, segment[0].y);
+        for (let i = 1; i < segment.length; i++) {
+            ctx.lineTo(segment[i].x, segment[i].y);
+        }
+
+        if (
+            segment.length >= 2 &&
+            (Math.abs(segment[segment.length - 1].x - segment[0].x) > 0.5 ||
+             Math.abs(segment[segment.length - 1].y - segment[0].y) > 0.5)
+        ) {
+            traceHorizonArc(segment[segment.length - 1], segment[0], cx, cy, R);
+        }
+
+        ctx.closePath();
+        ctx.fillStyle = land.fill || 'rgba(40,120,80,0.55)';
+        ctx.fill();
+        ctx.strokeStyle = land.stroke || 'rgba(80,200,120,0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+}
+
+function getSatelliteById(satId) {
+    return sats.find(s => s.id === satId) || null;
+}
+
+function getRenderableSats() {
+    const visible = trackable.slice();
+    const selectedSat = getSatelliteById(selectedSatId);
+
+    if (selectedSat && !visible.some(s => s.id === selectedSat.id)) {
+        visible.push(selectedSat);
+    }
+
+    return visible;
+}
+
+function setActiveCard(satId) {
+    document.querySelectorAll('.sat-list-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.satId === String(satId));
+    });
+}
+
+function formatLatLon(lat, lon) {
+    return (
+        Math.abs(lat).toFixed(1) + '° ' + (lat >= 0 ? 'N' : 'S') +
+        ', ' +
+        Math.abs(lon).toFixed(1) + '° ' + (lon >= 0 ? 'E' : 'W')
+    );
+}
+
+function updateMapCoords(pos, label) {
+    const coords = document.getElementById('mapCoords');
+    if (!pos) {
+        coords.textContent = formatLatLon(rotLat, rotLon);
+        return;
+    }
+
+    coords.textContent = formatLatLon(pos.lat, pos.lon) + (label ? ' • ' + label : '');
+}
+
+function focusSatellite(sat) {
+    selectedSatId = sat.id;
+    setActiveCard(sat.id);
+    tooltip.classList.remove('visible');
+    updateMapCoords(getSatPosition(sat, simTime), sat.name);
+}
+
+function updateGlobeRotation() {
+    if (dragging) return;
+
+    const selectedSat = getSatelliteById(selectedSatId);
+    if (selectedSat) {
+        const pos = getSatPosition(selectedSat, simTime);
+        rotLon = normalizeLongitude(rotLon + shortestLongitudeDelta(rotLon, pos.lon) * 0.12);
+        rotLat += (clamp(pos.lat, -65, 65) - rotLat) * 0.12;
+        updateMapCoords(pos, selectedSat.name);
+        return;
+    }
+
+    rotLon = normalizeLongitude(rotLon + 0.08);
+    rotLat += (20 - rotLat) * 0.02;
+    updateMapCoords();
+}
+
+// ── Draw Globe ────────────────────────────────────
+
+function drawGlobe(t) {
+    const w = W(), h = H();
+    const cx = w * 0.42; // globe center (left-of-center to leave room for labels)
+    const cy = h * 0.5;
+    const R = Math.min(w * 0.34, h * 0.42);
+
+    // ── Background ──
+    ctx.fillStyle = '#050a18';
+    ctx.fillRect(0, 0, w, h);
+
+    // Stars
+    for (let i = 0; i < 120; i++) {
+        const sx = ((Math.sin(i * 127.1) * 0.5 + 0.5) * w);
+        const sy = ((Math.cos(i * 311.7) * 0.5 + 0.5) * h);
+        ctx.fillStyle = `rgba(200,210,230,${0.12 + Math.sin(t * 0.5 + i) * 0.08})`;
+        ctx.fillRect(sx, sy, 1, 1);
+    }
+
+    // ── Atmosphere glow (outer ring) ──
+    const atmoGrad = ctx.createRadialGradient(cx, cy, R * 0.95, cx, cy, R * 1.35);
+    atmoGrad.addColorStop(0, 'rgba(59, 130, 246, 0.12)');
+    atmoGrad.addColorStop(0.4, 'rgba(59, 130, 246, 0.06)');
+    atmoGrad.addColorStop(1, 'rgba(59, 130, 246, 0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.35, 0, Math.PI * 2);
+    ctx.fillStyle = atmoGrad;
+    ctx.fill();
+
+    // ── Globe base (dark ocean) ──
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    const oceanGrad = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.3, 0, cx, cy, R);
+    oceanGrad.addColorStop(0, '#102a52');
+    oceanGrad.addColorStop(0.6, '#0a1d3a');
+    oceanGrad.addColorStop(1, '#06122a');
+    ctx.fillStyle = oceanGrad;
+    ctx.fill();
+
+    // ── Grid lines on globe ──
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.06)';
+    ctx.lineWidth = 0.5;
+
+    // Latitude circles
+    for (let lat = -60; lat <= 60; lat += 30) {
+        ctx.beginPath();
+        let started = false;
+        for (let lon = -180; lon <= 180; lon += 3) {
+            const p = project(lon, lat, cx, cy, R, rotLon, rotLat);
+            if (p) {
+                if (!started) { ctx.moveTo(p[0], p[1]); started = true; }
+                else ctx.lineTo(p[0], p[1]);
+            } else { started = false; }
+        }
+        ctx.stroke();
+    }
+
+    // Longitude meridians
+    for (let lon = -180; lon < 180; lon += 30) {
+        ctx.beginPath();
+        let started = false;
+        for (let lat = -90; lat <= 90; lat += 3) {
+            const p = project(lon, lat, cx, cy, R, rotLon, rotLat);
+            if (p) {
+                if (!started) { ctx.moveTo(p[0], p[1]); started = true; }
+                else ctx.lineTo(p[0], p[1]);
+            } else { started = false; }
+        }
+        ctx.stroke();
+    }
+
+    // ── Continents ──
+    if (typeof WORLD_LANDMASSES !== 'undefined') {
+        WORLD_LANDMASSES.forEach(land => drawLandmass(land, cx, cy, R));
+    }
+
+    // ── City dots on globe ──
+    const cities = [
+        [-74, 40.7, 'NYC'], [0, 51.5, 'LON'], [37.6, 55.8, 'MOW'],
+        [139.7, 35.7, 'TYO'], [151.2, -33.9, 'SYD'], [-43.2, -22.9, 'RIO'],
+        [77.2, 28.6, 'DEL'], [121.5, 31.2, 'SHA'], [-118.2, 34.1, 'LAX'],
+    ];
+    cities.forEach(([lon, lat, label]) => {
+        const p = project(lon, lat, cx, cy, R, rotLon, rotLat);
+        if (p && p[2] > 0.1) {
+            ctx.beginPath();
+            ctx.arc(p[0], p[1], 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(250, 204, 21, ${0.2 + p[2] * 0.3})`;
+            ctx.fill();
+            if (p[2] > 0.5) {
+                ctx.fillStyle = `rgba(250, 204, 21, ${p[2] * 0.3})`;
+                ctx.font = '6px "Space Mono", monospace';
+                ctx.fillText(label, p[0] + 4, p[1] - 2);
+            }
+        }
+    });
+
+    // ── Specular highlight (light reflection on globe) ──
+    const specGrad = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, 0, cx - R * 0.3, cy - R * 0.35, R * 0.7);
+    specGrad.addColorStop(0, 'rgba(100, 160, 255, 0.08)');
+    specGrad.addColorStop(1, 'rgba(100, 160, 255, 0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = specGrad;
+    ctx.fill();
+
+    // ── Globe edge (subtle ring) ──
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    return { cx, cy, R };
+}
+
+// ── Orbital Propagation (slower — 8× realtime) ───
+
+function getSatPosition(sat, t) {
+    if (sat.isDeep || sat.isLagrange) {
+        const drift = t * 0.0001;
+        const lat = sat.inc * 0.3 * Math.sin(drift + sat.phase * 0.0174);
+        const lon = ((drift * 20 + sat.phase * 2) % 360) - 180;
+        return { lat, lon, alt: sat.alt || 1500000, vel: sat.isDeep ? 17.0 : 3.07 };
+    }
+
+    const periodSec = sat.period * 60;
+    const meanMotion = (2 * Math.PI) / periodSec;
+    const elapsed = t + sat.phase * periodSec / 360;
+    const trueAnomaly = meanMotion * elapsed;
+    const lat = sat.inc * Math.sin(trueAnomaly);
+    const earthRotation = 0.00417 * t;
+    const orbitalLon = (trueAnomaly * 180 / Math.PI);
+    const lon = ((orbitalLon - earthRotation + sat.phase + 180) % 360) - 180;
+    const R_orbit = 6371 + sat.alt;
+    const vel = Math.sqrt(398600 / R_orbit);
+    return { lat, lon: ((lon + 540) % 360) - 180, alt: sat.alt, vel };
+}
+
+// ── Draw Satellites on Globe ──────────────────────
+
+let satPositions = [];
+
+function drawSatellites(t, globe) {
+    const { cx, cy, R } = globe;
+    satPositions = [];
+
+    getRenderableSats().forEach((sat, i) => {
+        const pos = getSatPosition(sat, t);
+        const isSelected = sat.id === selectedSatId;
+
+        // Project satellite position onto globe (slightly above surface)
+        const satR = R * (1 + Math.min(sat.alt, 2000) / 20000); // scale altitude
+        const p = project(pos.lon, pos.lat, cx, cy, satR, rotLon, rotLat);
+        if (!p) return; // backface — satellite is on the other side
+
+        const screenX = p[0], screenY = p[1];
+        satPositions.push({ sat, x: screenX, y: screenY, pos });
+
+        // Draw orbit trail on globe
+        ctx.strokeStyle = sat.color + '12';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        let started = false;
+        for (let dt = -600; dt <= 0; dt += 20) {
+            const tp = getSatPosition(sat, t + dt);
+            const tR = R * (1 + Math.min(sat.alt, 2000) / 20000);
+            const tp2 = project(tp.lon, tp.lat, cx, cy, tR, rotLon, rotLat);
+            if (tp2) {
+                if (!started) { ctx.moveTo(tp2[0], tp2[1]); started = true; }
+                else ctx.lineTo(tp2[0], tp2[1]);
+            } else { started = false; }
+        }
+        ctx.stroke();
+
+        // Satellite dot
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, isSelected ? 7 : 6, 0, Math.PI * 2);
+        ctx.fillStyle = sat.color;
+        ctx.fill();
+
+        // Glow
+        const glow = ctx.createRadialGradient(screenX, screenY, 3, screenX, screenY, 14);
+        glow.addColorStop(0, sat.color + '70');
+        glow.addColorStop(1, sat.color + '00');
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 14, 0, Math.PI * 2);
+        ctx.fillStyle = glow;
+        ctx.fill();
+
+        if (isSelected) {
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 12 + Math.sin(t * 2.2) * 2, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+        }
+
+        // Ping animation for active satellites
+        const pingPhase = (t * 0.4 + i * 2) % 4;
+        if (sat.status === 'Active' && pingPhase < 1.5) {
+            const r = (isSelected ? 8 : 5) + pingPhase * 10;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, r, 0, Math.PI * 2);
+            const alpha = Math.round((1 - pingPhase / 1.5) * 40);
+            ctx.strokeStyle = sat.color + alpha.toString(16).padStart(2, '0');
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+        }
+
+        // Label
+        if (p[2] > 0.25 || isSelected) {
+            ctx.fillStyle = isSelected ? '#f8fafc' : sat.color + '80';
+            ctx.font = (isSelected ? '700 8px "Space Mono", monospace' : '7px "Space Mono", monospace');
+            const label = sat.name.length > 14 ? sat.name.substring(0, 12) + '…' : sat.name;
+            ctx.fillText(label, screenX + 10, screenY - 8);
+        }
+    });
+}
+
+// ── Animation Loop ────────────────────────────────
+
+let startTime = Date.now() / 1000;
+
+function frame() {
+    const t = Date.now() / 1000 - startTime;
+    simTime = t * 8; // 8× realtime (was 60×, now much slower)
+    updateGlobeRotation();
+
+    const globe = drawGlobe(t);
+    drawSatellites(simTime, globe);
+
+    requestAnimationFrame(frame);
+}
+frame();
+
+// ── UTC Clock ─────────────────────────────────────
+
+function updateClock() {
+    document.getElementById('utcClock').textContent =
+        new Date().toISOString().slice(11, 19) + ' UTC';
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── Mouse Interaction ─────────────────────────────
+
+canvas.addEventListener('mousemove', function(e) {
+    if (dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    let found = null;
+    for (const sp of satPositions) {
+        const dx = mx - sp.x, dy = my - sp.y;
+        if (dx * dx + dy * dy < 120) { found = sp; break; }
+    }
+
+    if (found) {
+        canvas.style.cursor = 'pointer';
+        tooltip.classList.add('visible');
+        updateMapCoords(found.pos, found.sat.name);
+
+        let ttX = mx + 15, ttY = my - 10;
+        if (ttX + 220 > rect.width) ttX -= 240;
+        if (ttY + 160 > rect.height) ttY -= 160;
+        tooltip.style.left = ttX + 'px';
+        tooltip.style.top = ttY + 'px';
+
+        document.getElementById('ttName').textContent = found.sat.name;
+        document.getElementById('ttStatus').textContent = found.sat.status;
+        document.getElementById('ttOrbit').textContent = found.sat.orbit;
+        document.getElementById('ttAgency').textContent = found.sat.agency;
+
+        const alt = found.pos.alt;
+        document.getElementById('ttAlt').textContent =
+            alt > 1000000 ? (alt / 1000000).toFixed(1) + ' M km' :
+            alt > 1000 ? (alt / 1000).toFixed(0) + 'k km' :
+            alt.toFixed(0) + ' km';
+        document.getElementById('ttVel').textContent = found.pos.vel.toFixed(2) + ' km/s';
+        document.getElementById('ttPos').textContent =
+            Math.abs(found.pos.lat).toFixed(1) + '°' + (found.pos.lat >= 0 ? 'N' : 'S') + ' / ' +
+            Math.abs(found.pos.lon).toFixed(1) + '°' + (found.pos.lon >= 0 ? 'E' : 'W');
+    } else {
+        canvas.style.cursor = dragging ? 'grabbing' : 'grab';
+        tooltip.classList.remove('visible');
+        const selectedSat = getSatelliteById(selectedSatId);
+        updateMapCoords(selectedSat ? getSatPosition(selectedSat, simTime) : null, selectedSat ? selectedSat.name : '');
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    tooltip.classList.remove('visible');
+    canvas.style.cursor = 'grab';
+    const selectedSat = getSatelliteById(selectedSatId);
+    updateMapCoords(selectedSat ? getSatPosition(selectedSat, simTime) : null, selectedSat ? selectedSat.name : '');
+});
+
+canvas.addEventListener('click', function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    for (const sp of satPositions) {
+        const dx = mx - sp.x;
+        const dy = my - sp.y;
+        if (dx * dx + dy * dy < 144) {
+            focusSatellite(sp.sat);
+            return;
+        }
+    }
+});
+
+// ── Build Satellite List Panel ────────────────────
+
+const panel = document.getElementById('satListPanel');
+const activeCount = sats.filter(s => s.status === 'Active').length;
+const leoCount = trackable.filter(s => s.alt && s.alt < 2000).length;
+
+document.getElementById('totalCount').textContent = sats.length;
+document.getElementById('activeCount').textContent = activeCount;
+document.getElementById('leoCount').textContent = leoCount;
+
+// Build legend
+const legend = document.getElementById('mapLegend');
+trackable.slice(0, 6).forEach(s => {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    item.innerHTML = '<span class="legend-dot" style="background:' + s.color + '"></span>' +
+        (s.name.length > 12 ? s.name.substring(0, 10) + '…' : s.name);
+    legend.appendChild(item);
+});
+
+// Build list cards
+sats.forEach((sat, i) => {
+    const card = document.createElement('div');
+    card.className = 'sat-list-card';
+    card.style.setProperty('--c', sat.color);
+    card.id = 'sl-' + sat.id;
+    card.dataset.satId = sat.id;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', 'Locate ' + sat.name + ' on globe');
+
+    const icon = '🛰️';
+    const statusClass = sat.status === 'Active' ? 'on' : 'off';
+
+    card.innerHTML =
+        '<div class="sat-icon">' + icon + '</div>' +
+        '<div class="sat-info">' +
+            '<div class="sat-name">' + sat.name + '</div>' +
+            '<div class="sat-meta">' +
+                '<span class="sat-tag">' + sat.agency.split('/')[0].trim().split('(')[0].trim() + '</span>' +
+                '<span class="sat-tag">' + (sat.launched || 'N/A') + '</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="sat-status-dot ' + statusClass + '" title="' + sat.status + '"></div>';
+
+    const activateCard = () => focusSatellite(sat);
+    card.addEventListener('click', activateCard);
+    card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateCard();
+        }
+    });
+
+    panel.appendChild(card);
+});
+
+// ── Stats ─────────────────────────────────────────
+
+function updateStats() {
+    const now = new Date();
+    const hoursPassed = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const issOrbits = Math.floor(hoursPassed * 15.5 / 24);
+    document.getElementById('statOrbits').textContent = (issOrbits * activeCount).toLocaleString();
+    const signals = Math.floor(hoursPassed * 6 * activeCount);
+    document.getElementById('statSignal').textContent = signals.toLocaleString();
+    document.getElementById('statDistance').textContent = '24.1B km';
+    const issLaunch = new Date('1998-11-20');
+    const days = Math.floor((now - issLaunch) / 86400000);
+    document.getElementById('statUptime').textContent = days.toLocaleString() + 'd';
+}
+updateStats();
+setInterval(updateStats, 60000);
+</script>
+{% endblock %}

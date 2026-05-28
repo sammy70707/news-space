@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Singularity - Your gateway to the cosmos.">
+    <title>Singularity — Launch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+</head>
+<body>
+    <div class="loader-page" id="loaderPage">
+        <!-- Deep space stars — multiple layers for parallax -->
+        <div class="loader-stars layer-far" id="starsFar"></div>
+        <div class="loader-stars layer-mid" id="starsMid"></div>
+        <div class="loader-stars layer-near" id="starsNear"></div>
+
+        <!-- Atmospheric glow (appears during ascent) -->
+        <div class="atmo-glow"></div>
+
+        <!-- Clouds (pass by during ascent) -->
+        <div class="cloud-layer" id="cloudLayer">
+            <div class="cloud c1"></div>
+            <div class="cloud c2"></div>
+            <div class="cloud c3"></div>
+            <div class="cloud c4"></div>
+            <div class="cloud c5"></div>
+        </div>
+
+        <!-- Launch pad / ground -->
+        <div class="launch-pad">
+            <div class="pad-surface"></div>
+            <div class="pad-tower">
+                <div class="tower-arm"></div>
+            </div>
+            <div class="pad-light l1"></div>
+            <div class="pad-light l2"></div>
+        </div>
+
+        <!-- ═══ THE ROCKET (pure CSS Falcon-style) ═══ -->
+        <div class="rocket-wrapper" id="rocketWrapper">
+            <div class="rocket-body">
+                <!-- Nose cone -->
+                <div class="nose-cone">
+                    <div class="nose-highlight"></div>
+                </div>
+                <!-- Fuselage -->
+                <div class="fuselage">
+                    <div class="fuselage-stripe s1"></div>
+                    <div class="fuselage-stripe s2"></div>
+                    <div class="window w1"></div>
+                    <div class="window w2"></div>
+                    <div class="window w3"></div>
+                    <div class="logo-text">SE</div>
+                </div>
+                <!-- Fins -->
+                <div class="fin fin-left"></div>
+                <div class="fin fin-right"></div>
+                <!-- Engine section -->
+                <div class="engine-section">
+                    <div class="engine-bell"></div>
+                    <div class="engine-bell eb2"></div>
+                    <div class="engine-bell eb3"></div>
+                </div>
+                <!-- Landing legs (deploy on landing) -->
+                <div class="leg leg-left"></div>
+                <div class="leg leg-right"></div>
+            </div>
+
+            <!-- ═══ FLAME SYSTEM ═══ -->
+            <div class="flame-system">
+                <!-- Main flame -->
+                <div class="flame-core"></div>
+                <div class="flame-outer"></div>
+                <div class="flame-shock"></div>
+                <!-- Side flames (exhaust) -->
+                <div class="flame-side fl"></div>
+                <div class="flame-side fr"></div>
+                <!-- Exhaust particles -->
+                <div class="exhaust-system" id="exhaustSystem"></div>
+            </div>
+        </div>
+
+        <!-- Smoke billows from launch pad -->
+        <div class="launch-smoke" id="launchSmoke">
+            <div class="smoke-puff sp1"></div>
+            <div class="smoke-puff sp2"></div>
+            <div class="smoke-puff sp3"></div>
+            <div class="smoke-puff sp4"></div>
+            <div class="smoke-puff sp5"></div>
+            <div class="smoke-puff sp6"></div>
+            <div class="smoke-puff sp7"></div>
+            <div class="smoke-puff sp8"></div>
+        </div>
+
+        <!-- Landing burn smoke -->
+        <div class="landing-smoke" id="landingSmoke">
+            <div class="lsmoke ls1"></div>
+            <div class="lsmoke ls2"></div>
+            <div class="lsmoke ls3"></div>
+            <div class="lsmoke ls4"></div>
+        </div>
+
+        <!-- Camera shake container -->
+        <div class="shake-overlay"></div>
+
+        <!-- Text & Progress -->
+        <div class="loader-text">
+            <h2 id="statusText">IGNITION SEQUENCE START</h2>
+            <p id="statusSub">T-minus 3... 2... 1... Liftoff!</p>
+        </div>
+        <div class="loader-progress">
+            <div class="bar"></div>
+        </div>
+    </div>
+
+    <script>
+        // Generate multi-layer star fields
+        function makeStars(id, count, sizeRange) {
+            const c = document.getElementById(id);
+            for (let i = 0; i < count; i++) {
+                const s = document.createElement('div');
+                s.className = 's';
+                s.style.left = Math.random() * 100 + '%';
+                s.style.top = Math.random() * 100 + '%';
+                const sz = sizeRange[0] + Math.random() * (sizeRange[1] - sizeRange[0]);
+                s.style.width = sz + 'px';
+                s.style.height = sz + 'px';
+                s.style.animationDelay = Math.random() * 3 + 's';
+                s.style.animationDuration = (1 + Math.random() * 3) + 's';
+                s.style.opacity = 0.3 + Math.random() * 0.7;
+                c.appendChild(s);
+            }
+        }
+        makeStars('starsFar', 80, [0.5, 1.5]);
+        makeStars('starsMid', 50, [1, 2.5]);
+        makeStars('starsNear', 30, [2, 3.5]);
+
+        // Generate exhaust particles continuously
+        const exhSys = document.getElementById('exhaustSystem');
+        function spawnParticle() {
+            const p = document.createElement('div');
+            p.className = 'exh-p';
+            p.style.left = (40 + Math.random() * 20) + '%';
+            p.style.animationDuration = (0.4 + Math.random() * 0.6) + 's';
+            exhSys.appendChild(p);
+            setTimeout(() => p.remove(), 1000);
+        }
+        const particleInterval = setInterval(spawnParticle, 50);
+
+        // Status text updates
+        const texts = [
+            [0,    'IGNITION SEQUENCE START',  'T-minus 3... 2... 1...'],
+            [1000, 'LIFTOFF',                  'All engines nominal — climbing through Max-Q'],
+            [3000, 'STAGE SEPARATION',          'First stage separating... entry burn starting'],
+            [5000, 'LANDING BURN',              'Guidance is converging — touchdown imminent'],
+            [7000, 'LANDING CONFIRMED',         'The Falcon has landed! 🎉'],
+            [7800, 'SINGULARITY',            'Preparing your journey through the cosmos...'],
+        ];
+        texts.forEach(([delay, h, p]) => {
+            setTimeout(() => {
+                document.getElementById('statusText').textContent = h;
+                document.getElementById('statusSub').textContent = p;
+            }, delay);
+        });
+
+        // Redirect after full animation
+        setTimeout(function() {
+            clearInterval(particleInterval);
+            document.getElementById('loaderPage').style.opacity = '0';
+            document.getElementById('loaderPage').style.transition = 'opacity 0.6s';
+            setTimeout(() => {
+                {% if session.get('user_id') %}
+                    window.location.href = '{{ url_for("home") }}';
+                {% else %}
+                    window.location.href = '{{ url_for("login") }}';
+                {% endif %}
+            }, 600);
+        }, 9500);
+    </script>
+</body>
+</html>

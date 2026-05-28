@@ -1,0 +1,761 @@
+{% extends 'base.html' %}
+{% set page_title = 'Solar System Tracker' %}
+{% set page_description = 'Track deep space probes and missions across the solar system.' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/solar_tracker.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>🪐 SOLAR SYSTEM TRACKER</h2>
+        <p class="subtitle">Deep space probes and planetary missions — beyond Earth's orbit.</p>
+    </div>
+
+    <div class="solar-wrapper">
+        <div class="solar-main">
+            <!-- Solar System Canvas -->
+            <div class="solar-container" id="solarContainer">
+                <canvas id="solarCanvas"></canvas>
+
+                <div class="solar-hud-top">
+                    <span class="solar-hud-title">Heliocentric View</span>
+                    <span class="solar-hud-badge">DEEP SPACE</span>
+                </div>
+
+                <!-- Zoom Controls -->
+                <div class="zoom-controls">
+                    <button class="zoom-btn" id="zoomIn" title="Zoom In">+</button>
+                    <div class="zoom-level" id="zoomLevel">1.0×</div>
+                    <button class="zoom-btn" id="zoomOut" title="Zoom Out">−</button>
+                    <button class="zoom-btn" id="zoomReset" title="Reset View" style="margin-top:4px;font-size:0.65rem;">⟲</button>
+                </div>
+
+                <div class="solar-info">
+                    <div class="solar-info-hint">
+                        Scroll to zoom · Drag to pan · Hover for info
+                    </div>
+                </div>
+
+                <!-- Tooltip -->
+                <div class="solar-tooltip" id="solarTooltip">
+                    <h4 id="stName"></h4>
+                    <div class="st-row"><span class="st-label">Status</span><span class="st-val" id="stStatus"></span></div>
+                    <div class="st-row"><span class="st-label">Distance</span><span class="st-val" id="stDist"></span></div>
+                    <div class="st-row"><span class="st-label">Orbit</span><span class="st-val" id="stOrbit"></span></div>
+                    <div class="st-row"><span class="st-label">Agency</span><span class="st-val" id="stAgency"></span></div>
+                    <div class="st-row"><span class="st-label">Launched</span><span class="st-val" id="stLaunch"></span></div>
+                </div>
+            </div>
+
+            <!-- Probe Panel -->
+            <div class="probe-panel" id="probePanel">
+                <div class="probe-summary">
+                    <h3>🚀 Deep Space Missions</h3>
+                    <p>Probes beyond Earth's orbit</p>
+                    <div class="probe-stats">
+                        <div class="probe-mini-stat">
+                            <div class="pnum" id="dsTotal">0</div>
+                            <div class="plabel">Missions</div>
+                        </div>
+                        <div class="probe-mini-stat">
+                            <div class="pnum" id="dsActive">0</div>
+                            <div class="plabel">Active</div>
+                        </div>
+                        <div class="probe-mini-stat">
+                            <div class="pnum" id="dsPlanets">0</div>
+                            <div class="plabel">Planets</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Cards injected by JS -->
+            </div>
+        </div>
+
+        <!-- Distance Stats -->
+        <div class="distance-bar">
+            <div class="dist-card">
+                <div class="dc-icon" style="background:rgba(139,92,246,0.1);">🚀</div>
+                <div>
+                    <div class="dc-val" id="farthestDist">--</div>
+                    <div class="dc-label">Farthest Probe (Voyager 1)</div>
+                </div>
+            </div>
+            <div class="dist-card">
+                <div class="dc-icon" style="background:rgba(236,72,153,0.1);">⚡</div>
+                <div>
+                    <div class="dc-val" id="lightDelay">--</div>
+                    <div class="dc-label">Light Travel Time to Voyager 1</div>
+                </div>
+            </div>
+            <div class="dist-card">
+                <div class="dc-icon" style="background:rgba(59,130,246,0.1);">🔴</div>
+                <div>
+                    <div class="dc-val" id="marsProbes">--</div>
+                    <div class="dc-label">Active Mars Missions</div>
+                </div>
+            </div>
+            <div class="dist-card">
+                <div class="dc-icon" style="background:rgba(245,158,11,0.1);">🌟</div>
+                <div>
+                    <div class="dc-val" id="totalYears">--</div>
+                    <div class="dc-label">Combined Mission Years</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ═══════════════════════════════════════════════════
+// SOLAR SYSTEM DEEP SPACE TRACKER
+// ═══════════════════════════════════════════════════
+
+const canvas = document.getElementById('solarCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('solarContainer');
+const tooltip = document.getElementById('solarTooltip');
+
+// ── Real Planetary Orbital Elements (J2000 Epoch) ──
+// Each planet has: a (AU), e (eccentricity), I (inclination°),
+// L (mean longitude°), wBar (longitude of perihelion°), Omega (longitude of ascending node°)
+// Plus century rates (suffix Cy) for each element.
+// Source: NASA JPL — https://ssd.jpl.nasa.gov/planets/approx_pos.html
+
+const PLANETS = [
+    {
+        name: 'Mercury', r: 3, color: '#9ca3af',
+        a: 0.38709927, aCy: 0.00000037, e: 0.20563593, eCy: 0.00001906,
+        I: 7.00497902, ICy: -0.00594749, L: 252.25032350, LCy: 149472.67411175,
+        wBar: 77.45779628, wBarCy: 0.16047689, Omega: 48.33076593, OmegaCy: -0.12534081,
+    },
+    {
+        name: 'Venus', r: 4, color: '#fbbf24',
+        a: 0.72333566, aCy: 0.00000390, e: 0.00677672, eCy: -0.00004107,
+        I: 3.39467605, ICy: -0.00078890, L: 181.97909950, LCy: 58517.81538729,
+        wBar: 131.60246718, wBarCy: 0.00268329, Omega: 76.67984255, OmegaCy: -0.27769418,
+    },
+    {
+        name: 'Earth', r: 4, color: '#3b82f6',
+        a: 1.00000261, aCy: 0.00000562, e: 0.01671123, eCy: -0.00004392,
+        I: -0.00001531, ICy: -0.01294668, L: 100.46457166, LCy: 35999.37244981,
+        wBar: 102.93768193, wBarCy: 0.32327364, Omega: 0.0, OmegaCy: 0.0,
+    },
+    {
+        name: 'Mars', r: 3.5, color: '#ef4444',
+        a: 1.52371034, aCy: 0.00001847, e: 0.09339410, eCy: 0.00007882,
+        I: 1.84969142, ICy: -0.00813131, L: -4.55343205, LCy: 19140.30268499,
+        wBar: -23.94362959, wBarCy: 0.44441088, Omega: 49.55953891, OmegaCy: -0.29257343,
+    },
+    {
+        name: 'Jupiter', r: 8, color: '#f97316',
+        a: 5.20288700, aCy: -0.00011607, e: 0.04838624, eCy: -0.00013253,
+        I: 1.30439695, ICy: -0.00183714, L: 34.39644051, LCy: 3034.74612775,
+        wBar: 14.72847983, wBarCy: 0.21252668, Omega: 100.47390909, OmegaCy: 0.20469106,
+    },
+    {
+        name: 'Saturn', r: 7, color: '#d4a373',
+        a: 9.53667594, aCy: -0.00125060, e: 0.05386179, eCy: -0.00050991,
+        I: 2.48599187, ICy: 0.00193609, L: 49.95424423, LCy: 1222.49362201,
+        wBar: 92.59887831, wBarCy: -0.41897216, Omega: 113.66242448, OmegaCy: -0.28867794,
+    },
+    {
+        name: 'Uranus', r: 5, color: '#67e8f9',
+        a: 19.18916464, aCy: -0.00196176, e: 0.04725744, eCy: -0.00004397,
+        I: 0.77263783, ICy: -0.00242939, L: 313.23810451, LCy: 428.48202785,
+        wBar: 170.95427630, wBarCy: 0.40805281, Omega: 74.01692503, OmegaCy: 0.04240589,
+    },
+    {
+        name: 'Neptune', r: 5, color: '#6366f1',
+        a: 30.06992276, aCy: 0.00026291, e: 0.00859048, eCy: 0.00005105,
+        I: 1.77004347, ICy: 0.00035372, L: -55.12002969, LCy: 218.45945325,
+        wBar: 44.96476227, wBarCy: -0.32241464, Omega: 131.78422574, OmegaCy: -0.00508664,
+    },
+];
+
+// ── Kepler's Equation Solver ──
+// Solve M = E - e*sin(E) for E given M (mean anomaly) and e (eccentricity)
+function solveKepler(M_deg, e) {
+    let M = M_deg * Math.PI / 180;
+    // Normalize M to [-π, π]
+    M = M % (2 * Math.PI);
+    if (M > Math.PI) M -= 2 * Math.PI;
+    if (M < -Math.PI) M += 2 * Math.PI;
+
+    let E = M + e * Math.sin(M); // initial guess
+    for (let i = 0; i < 20; i++) {
+        const dE = (M - (E - e * Math.sin(E))) / (1 - e * Math.cos(E));
+        E += dE;
+        if (Math.abs(dE) < 1e-8) break;
+    }
+    return E; // in radians
+}
+
+// ── Get Real Planet Position (heliocentric, ecliptic) ──
+function getPlanetPosition(planet, T) {
+    // T = Julian centuries from J2000
+    const a = planet.a + planet.aCy * T;
+    const e = planet.e + planet.eCy * T;
+    const L = planet.L + planet.LCy * T;       // mean longitude (degrees)
+    const wBar = planet.wBar + planet.wBarCy * T; // longitude of perihelion (degrees)
+
+    // Mean anomaly
+    const M = L - wBar;
+
+    // Solve Kepler's equation
+    const E = solveKepler(M, e);
+
+    // True anomaly
+    const sinV = (Math.sqrt(1 - e * e) * Math.sin(E)) / (1 - e * Math.cos(E));
+    const cosV = (Math.cos(E) - e) / (1 - e * Math.cos(E));
+    const v = Math.atan2(sinV, cosV); // radians
+
+    // Heliocentric distance
+    const r_au = a * (1 - e * Math.cos(E));
+
+    // Heliocentric longitude (in ecliptic plane, simplified for 2D)
+    const lonPeri = wBar * Math.PI / 180;
+    const helioLon = v + lonPeri; // radians
+
+    return { au: r_au, angle: helioLon * 180 / Math.PI };
+}
+
+// ── Julian Date Calculation ──
+function getJulianCenturies() {
+    const now = new Date();
+    // Julian Date
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth() + 1;
+    const d = now.getUTCDate() + now.getUTCHours() / 24 + now.getUTCMinutes() / 1440;
+    
+    let jy = y, jm = m;
+    if (m <= 2) { jy -= 1; jm += 12; }
+    const A = Math.floor(jy / 100);
+    const B = 2 - A + Math.floor(A / 4);
+    const JD = Math.floor(365.25 * (jy + 4716)) + Math.floor(30.6001 * (jm + 1)) + d + B - 1524.5;
+    
+    // Julian centuries from J2000.0 (JD 2451545.0)
+    return (JD - 2451545.0) / 36525.0;
+}
+
+const T_now = getJulianCenturies();
+
+// Store computed positions for planets
+let planetPositions = [];
+
+// ── HUD: Show current date ──
+const hudTitle = document.querySelector('.solar-hud-title');
+const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+hudTitle.textContent = 'Live Positions · ' + dateStr;
+
+// Asteroid belt
+const ASTEROID_BELT = { innerAU: 2.2, outerAU: 3.2 };
+// Kuiper belt
+const KUIPER_BELT = { innerAU: 30, outerAU: 50 };
+
+// ── Deep Space Probe Data ──
+
+const PROBE_COLORS = [
+    '#a78bfa','#f472b6','#22d3ee','#34d399','#fbbf24',
+    '#fb923c','#818cf8','#e879f9','#4ade80','#f87171',
+];
+
+const probes = [
+{% for sat in satellites %}
+{% if sat.orbit_type and ('Mars' in sat.orbit_type or 'Jupiter' in sat.orbit_type or 'Saturn' in sat.orbit_type or
+    'Interstellar' in sat.orbit_type or 'Heliocentric' in sat.orbit_type or 'Kuiper' in sat.orbit_type or
+    'Lunar' in sat.orbit_type or 'L1' in sat.orbit_type or 'L2' in sat.orbit_type or
+    'Venus' in sat.orbit_type or 'Sun' in sat.orbit_type) %}
+{
+    id: {{ sat.id }},
+    name: "{{ sat.name|replace('"', '\\"') }}",
+    status: "{{ sat.status }}",
+    orbit: "{{ sat.orbit_type or 'Unknown' }}",
+    agency: "{{ sat.agency|replace('"', '\\"') }}",
+    launched: "{{ sat.launch_date or 'N/A' }}",
+    {% if 'Interstellar' in (sat.orbit_type or '') %}
+    au: {{ 160 if 'Voyager 1' in sat.name else 135 if 'Voyager 2' in sat.name else 90 }},
+    type: 'interstellar',
+    {% elif 'Kuiper' in (sat.orbit_type or '') %}
+    au: 57,
+    type: 'kuiper',
+    {% elif 'Mars' in (sat.orbit_type or '') %}
+    au: 1.52,
+    type: 'mars',
+    {% elif 'Jupiter' in (sat.orbit_type or '') %}
+    au: 5.20,
+    type: 'jupiter',
+    {% elif 'Saturn' in (sat.orbit_type or '') %}
+    au: 9.54,
+    type: 'saturn',
+    {% elif 'Venus' in (sat.orbit_type or '') %}
+    au: 0.72,
+    type: 'venus',
+    {% elif 'Sun' in (sat.orbit_type or '') %}
+    au: 0.15,
+    type: 'sun',
+    {% elif 'L1' in (sat.orbit_type or '') %}
+    au: 0.99,
+    type: 'l1',
+    {% elif 'L2' in (sat.orbit_type or '') %}
+    au: 1.01,
+    type: 'l2',
+    {% elif 'Lunar' in (sat.orbit_type or '') %}
+    au: 1.003,
+    type: 'lunar',
+    {% else %}
+    au: 2.0,
+    type: 'other',
+    {% endif %}
+    phase: {{ (loop.index0 * 47 + 15) % 360 }},
+},
+{% endif %}
+{% endfor %}
+];
+
+probes.forEach((p, i) => p.color = PROBE_COLORS[i % PROBE_COLORS.length]);
+
+// ── Canvas Setup ──────────────────────────────────
+
+let zoom = 1.0;
+let panX = 0, panY = 0;
+let dragging = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
+
+function resize() {
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const W = () => canvas.width / window.devicePixelRatio;
+const H = () => canvas.height / window.devicePixelRatio;
+
+// Convert AU to canvas pixels (logarithmic scale for visibility)
+function auToPixels(au) {
+    // Logarithmic scale: compresses outer solar system
+    if (au <= 0) return 0;
+    return Math.log10(au * 10 + 1) * 90 * zoom;
+}
+
+function solarToCanvas(au, angleDeg) {
+    const w = W(), h = H();
+    const cx = w / 2 + panX;
+    const cy = h / 2 + panY;
+    const r = auToPixels(au);
+    const rad = angleDeg * Math.PI / 180;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+}
+
+// ── Draw Solar System ─────────────────────────────
+
+let probePositions = [];
+
+function drawSolarSystem(t) {
+    const w = W(), h = H();
+    const cx = w / 2 + panX;
+    const cy = h / 2 + panY;
+
+    // Background
+    ctx.fillStyle = '#020408';
+    ctx.fillRect(0, 0, w, h);
+
+    // Distant stars
+    for (let i = 0; i < 150; i++) {
+        const sx = (Math.sin(i * 127.1 + 0.5) * 0.5 + 0.5) * w;
+        const sy = (Math.cos(i * 311.7 + 0.3) * 0.5 + 0.5) * h;
+        const brightness = 0.15 + Math.sin(t * 0.3 + i) * 0.1;
+        ctx.fillStyle = `rgba(200,210,230,${brightness})`;
+        ctx.fillRect(sx, sy, 1, 1);
+    }
+
+    // ── Asteroid Belt ──
+    const abInner = auToPixels(ASTEROID_BELT.innerAU);
+    const abOuter = auToPixels(ASTEROID_BELT.outerAU);
+    ctx.beginPath();
+    ctx.arc(cx, cy, abOuter, 0, Math.PI * 2);
+    ctx.arc(cx, cy, abInner, 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(120, 113, 108, 0.04)';
+    ctx.fill();
+    // Scatter asteroid dots
+    for (let i = 0; i < 80; i++) {
+        const angle = (i * 4.5 + t * 0.4) * Math.PI / 180;
+        const dist = abInner + Math.random() * (abOuter - abInner);
+        const ax = cx + dist * Math.cos(angle);
+        const ay = cy + dist * Math.sin(angle);
+        ctx.fillStyle = 'rgba(120, 113, 108, 0.2)';
+        ctx.fillRect(ax, ay, 1, 1);
+    }
+
+    // ── Kuiper Belt (if visible) ──
+    const kbInner = auToPixels(KUIPER_BELT.innerAU);
+    const kbOuter = auToPixels(KUIPER_BELT.outerAU);
+    if (kbOuter < w) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, kbOuter, 0, Math.PI * 2);
+        ctx.arc(cx, cy, kbInner, 0, Math.PI * 2, true);
+        ctx.fillStyle = 'rgba(100, 116, 139, 0.025)';
+        ctx.fill();
+    }
+
+    // ── Planet Orbits (real semi-major axis) ──
+    PLANETS.forEach(p => {
+        const r = auToPixels(p.a);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.07)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+    });
+
+    // ── Sun ──
+    const sunR = 6 * Math.sqrt(zoom);
+    const sunGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunR * 3);
+    sunGrad.addColorStop(0, 'rgba(255, 220, 50, 1)');
+    sunGrad.addColorStop(0.3, 'rgba(255, 180, 30, 0.7)');
+    sunGrad.addColorStop(0.6, 'rgba(255, 140, 20, 0.2)');
+    sunGrad.addColorStop(1, 'rgba(255, 100, 0, 0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, sunR * 3, 0, Math.PI * 2);
+    ctx.fillStyle = sunGrad;
+    ctx.fill();
+    // Sun core
+    ctx.beginPath();
+    ctx.arc(cx, cy, sunR, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fill();
+
+    // ── Planets (REAL POSITIONS) ──
+    planetPositions = [];
+    PLANETS.forEach(p => {
+        const pos = getPlanetPosition(p, T_now);
+        const [px, py] = solarToCanvas(pos.au, pos.angle);
+
+        planetPositions.push({ planet: p, x: px, y: py, au: pos.au, angle: pos.angle });
+
+        // Planet dot
+        ctx.beginPath();
+        ctx.arc(px, py, p.r * Math.sqrt(zoom * 0.5 + 0.5), 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+
+        // Glow
+        ctx.beginPath();
+        ctx.arc(px, py, p.r * 2, 0, Math.PI * 2);
+        const glow = ctx.createRadialGradient(px, py, p.r * 0.5, px, py, p.r * 2);
+        glow.addColorStop(0, p.color + '30');
+        glow.addColorStop(1, p.color + '00');
+        ctx.fillStyle = glow;
+        ctx.fill();
+
+        // Saturn rings
+        if (p.name === 'Saturn') {
+            ctx.beginPath();
+            ctx.ellipse(px, py, p.r * 2.5, p.r * 0.8, 0.4, 0, Math.PI * 2);
+            ctx.strokeStyle = p.color + '50';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        // Label
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.5)';
+        ctx.font = '7px "Space Mono", monospace';
+        ctx.fillText(p.name, px + p.r + 4, py - 2);
+    });
+
+    // ── Earth's Moon ──
+    let moonX = null, moonY = null;
+    const earthPos = planetPositions.find(pp => pp.planet.name === 'Earth');
+    if (earthPos) {
+        // Moon orbits Earth every 27.3 days
+        const moonPeriodDays = 27.321;
+        const now = new Date();
+        const dayOfYear = (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
+                          Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000;
+        const moonAngle = ((dayOfYear / moonPeriodDays) * 360) % 360;
+        
+        // Moon distance: ~0.00257 AU from Earth — exaggerate slightly for visibility
+        const moonOrbitRadius = 12 * Math.sqrt(zoom);
+        const moonRad = moonAngle * Math.PI / 180;
+        moonX = earthPos.x + moonOrbitRadius * Math.cos(moonRad);
+        moonY = earthPos.y + moonOrbitRadius * Math.sin(moonRad);
+
+        // Moon orbit ring (faint)
+        ctx.beginPath();
+        ctx.arc(earthPos.x, earthPos.y, moonOrbitRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(200, 200, 200, 0.1)';
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+
+        // Moon dot
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, 2 * Math.sqrt(zoom * 0.5 + 0.5), 0, Math.PI * 2);
+        ctx.fillStyle = '#d1d5db';
+        ctx.fill();
+
+        // Moon glow
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, 4, 0, Math.PI * 2);
+        const moonGlow = ctx.createRadialGradient(moonX, moonY, 1, moonX, moonY, 4);
+        moonGlow.addColorStop(0, 'rgba(209, 213, 219, 0.25)');
+        moonGlow.addColorStop(1, 'rgba(209, 213, 219, 0)');
+        ctx.fillStyle = moonGlow;
+        ctx.fill();
+
+        // Moon label
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.45)';
+        ctx.font = '6px "Space Mono", monospace';
+        ctx.fillText('Moon', moonX + 4, moonY - 3);
+    }
+
+    // ── Deep Space Probes ──
+    probePositions = [];
+
+    probes.forEach((probe, i) => {
+        let px, py;
+
+        if (probe.type === 'lunar' && moonX !== null && moonY !== null) {
+            // Lunar probes orbit the Moon
+            const probeAngle = probe.phase * Math.PI/180 + t * 4; // fast orbit around moon
+            const offsetRadius = 4 * Math.sqrt(zoom) + (i % 3);
+            px = moonX + offsetRadius * Math.cos(probeAngle);
+            py = moonY + offsetRadius * Math.sin(probeAngle);
+        } else {
+            // Angle: use real planet positions for probes near planets
+            let angle;
+            if (probe.type === 'interstellar' || probe.type === 'kuiper') {
+                angle = probe.phase + t * 0.05;
+            } else {
+                // Find matching planet's real computed position
+                const pp = planetPositions.find(pp => pp.planet.name.toLowerCase() === probe.type);
+                if (pp) {
+                    angle = pp.angle + probe.phase * 0.1; // slight offset from planet
+                } else {
+                    angle = probe.phase + t * 0.3;
+                }
+            }
+
+            // Offset probes around same planet slightly
+            const auOffset = probe.au + (i % 5) * 0.03;
+            const [cx, cy] = solarToCanvas(auOffset, angle);
+            px = cx;
+            py = cy;
+        }
+
+        probePositions.push({ probe, x: px, y: py });
+
+        // Probe marker (triangle — larger)
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(6, 5);
+        ctx.lineTo(-6, 5);
+        ctx.closePath();
+        ctx.fillStyle = probe.color;
+        ctx.fill();
+        ctx.restore();
+
+        // Glow
+        ctx.beginPath();
+        ctx.arc(px, py, 14, 0, Math.PI * 2);
+        const glow = ctx.createRadialGradient(px, py, 3, px, py, 14);
+        glow.addColorStop(0, probe.color + '60');
+        glow.addColorStop(1, probe.color + '00');
+        ctx.fillStyle = glow;
+        ctx.fill();
+
+        // Signal line to Sun (for active probes)
+        if (probe.status === 'Active') {
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(cx, cy);
+            ctx.strokeStyle = probe.color + '08';
+            ctx.lineWidth = 0.5;
+            ctx.setLineDash([2, 8]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Label
+        ctx.fillStyle = probe.color + '80';
+        ctx.font = '7px "Space Mono", monospace';
+        const label = probe.name.length > 18 ? probe.name.substring(0, 16) + '…' : probe.name;
+        ctx.fillText(label, px + 12, py - 8);
+    });
+
+    // ── Scale indicator ──
+    const scaleAU = zoom > 2 ? 1 : zoom > 0.5 ? 5 : 10;
+    const scalePx = auToPixels(scaleAU);
+    const sy = h - 20;
+    ctx.beginPath();
+    ctx.moveTo(20, sy);
+    ctx.lineTo(20 + scalePx, sy);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.3)';
+    ctx.font = '8px "Space Mono", monospace';
+    ctx.fillText(scaleAU + ' AU', 20, sy - 5);
+}
+
+// ── Animation Loop ────────────────────────────────
+
+let start = Date.now() / 1000;
+function frame() {
+    const t = Date.now() / 1000 - start;
+    drawSolarSystem(t);
+    requestAnimationFrame(frame);
+}
+frame();
+
+// ── Zoom & Pan Controls ───────────────────────────
+
+container.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = -e.deltaY * 0.001;
+    zoom = Math.max(0.15, Math.min(5, zoom + delta * zoom));
+    document.getElementById('zoomLevel').textContent = zoom.toFixed(1) + '×';
+}, { passive: false });
+
+document.getElementById('zoomIn').onclick = () => {
+    zoom = Math.min(5, zoom * 1.3);
+    document.getElementById('zoomLevel').textContent = zoom.toFixed(1) + '×';
+};
+document.getElementById('zoomOut').onclick = () => {
+    zoom = Math.max(0.15, zoom / 1.3);
+    document.getElementById('zoomLevel').textContent = zoom.toFixed(1) + '×';
+};
+document.getElementById('zoomReset').onclick = () => {
+    zoom = 1.0; panX = 0; panY = 0;
+    document.getElementById('zoomLevel').textContent = '1.0×';
+};
+
+// Drag to pan
+container.addEventListener('mousedown', e => {
+    if (e.target === canvas) {
+        dragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        panStartX = panX;
+        panStartY = panY;
+    }
+});
+window.addEventListener('mousemove', e => {
+    if (dragging) {
+        panX = panStartX + (e.clientX - dragStartX);
+        panY = panStartY + (e.clientY - dragStartY);
+    }
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+
+// ── Tooltip ───────────────────────────────────────
+
+canvas.addEventListener('mousemove', e => {
+    if (dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    let found = null;
+    for (const pp of probePositions) {
+        const dx = mx - pp.x, dy = my - pp.y;
+        if (dx * dx + dy * dy < 200) { found = pp; break; }
+    }
+
+    if (found) {
+        canvas.style.cursor = 'pointer';
+        tooltip.classList.add('visible');
+
+        let tx = mx + 15, ty = my - 10;
+        if (tx + 200 > rect.width) tx -= 220;
+        if (ty + 140 > rect.height) ty -= 140;
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+
+        document.getElementById('stName').textContent = found.probe.name;
+        document.getElementById('stStatus').textContent = found.probe.status;
+        document.getElementById('stOrbit').textContent = found.probe.orbit;
+        document.getElementById('stAgency').textContent = found.probe.agency;
+        document.getElementById('stLaunch').textContent = found.probe.launched;
+
+        const distKm = found.probe.au * 149597870.7;
+        const distStr = distKm > 1e9 ? (distKm / 1e9).toFixed(1) + 'B km' :
+                        distKm > 1e6 ? (distKm / 1e6).toFixed(0) + 'M km' :
+                        (distKm / 1000).toFixed(0) + 'k km';
+        document.getElementById('stDist').textContent = distStr + ' (' + found.probe.au.toFixed(2) + ' AU)';
+    } else {
+        canvas.style.cursor = dragging ? 'grabbing' : 'grab';
+        tooltip.classList.remove('visible');
+    }
+});
+
+canvas.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+
+// ── Build Probe Panel ─────────────────────────────
+
+const panel = document.getElementById('probePanel');
+document.getElementById('dsTotal').textContent = probes.length;
+document.getElementById('dsActive').textContent = probes.filter(p => p.status === 'Active').length;
+
+const visitedPlanets = new Set();
+probes.forEach(p => { if (p.type !== 'interstellar' && p.type !== 'other') visitedPlanets.add(p.type); });
+document.getElementById('dsPlanets').textContent = visitedPlanets.size;
+
+probes.forEach((probe, i) => {
+    const card = document.createElement('div');
+    card.className = 'probe-card';
+    card.style.setProperty('--pc', probe.color);
+
+    const distKm = probe.au * 149597870.7;
+    const distStr = distKm > 1e9 ? (distKm / 1e9).toFixed(1) + 'B km' :
+                    distKm > 1e6 ? (distKm / 1e6).toFixed(0) + 'M km' :
+                    (distKm / 1000).toFixed(0) + 'k km';
+
+    card.innerHTML =
+        '<div class="probe-card-head">' +
+            '<h4>' + probe.name + '</h4>' +
+            '<span class="probe-st ' + (probe.status === 'Active' ? 'active-p' : 'done-p') + '">' + probe.status + '</span>' +
+        '</div>' +
+        '<div class="probe-card-detail">' +
+            '<span>' + probe.orbit + '</span>' +
+            '<span class="probe-dist">' + distStr + '</span>' +
+            '<span>' + probe.agency.split('/')[0].trim() + '</span>' +
+        '</div>';
+
+    card.addEventListener('click', () => {
+        document.querySelectorAll('.probe-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+    });
+
+    panel.appendChild(card);
+});
+
+// ── Stats ─────────────────────────────────────────
+
+// Voyager 1 distance: ~24.1B km (161 AU approx)
+document.getElementById('farthestDist').textContent = '24.1 Billion km';
+// Light time: ~22.4 hours
+document.getElementById('lightDelay').textContent = '~22.4 hours';
+// Mars probes
+const marsActive = probes.filter(p => p.type === 'mars' && p.status === 'Active').length;
+document.getElementById('marsProbes').textContent = marsActive;
+// Combined years
+let totalYrs = 0;
+const now = new Date();
+probes.forEach(p => {
+    if (p.launched && p.launched !== 'N/A') {
+        totalYrs += (now.getFullYear() - parseInt(p.launched.substring(0, 4)));
+    }
+});
+document.getElementById('totalYears').textContent = totalYrs + ' years';
+</script>
+{% endblock %}

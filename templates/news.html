@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% set page_title = 'News' %}
+{% set page_description = 'Latest space news from the past 2 weeks — missions, discoveries, launches, and more.' %}
+
+{% block content %}
+<div class="container">
+    <!-- Page Header -->
+    <section class="page-header">
+        <h2>📰 SPACE NEWS</h2>
+        <p class="subtitle">Real-time space news from the past 2 weeks — auto-updated every 30 minutes</p>
+        <p class="news-updated">{{ news|length }} articles · Last updated just now</p>
+    </section>
+
+    <!-- News Grid -->
+    {% if news %}
+    <section style="margin-bottom: 3rem;">
+        <div class="grid-3">
+            {% for article in news %}
+            <a href="{{ article.source_url or '#' }}" target="_blank" rel="noopener noreferrer" class="news-card-link">
+            <article class="card news-card">
+                <div class="card-img-wrapper">
+                    <img class="card-img" src="{{ article.image_url }}" alt="{{ article.title }}" loading="lazy"
+                         onerror="this.style.background='linear-gradient(135deg, #1e293b, #334155)'; this.style.display='block';">
+                </div>
+                <div class="card-body">
+                    <span class="badge badge-category">{{ article.category }}</span>
+                    <h3 style="margin-top: 0.5rem;">{{ article.title }}</h3>
+                    <p>{{ article.content[:200] }}...</p>
+                    <div class="card-meta">
+                        <span class="card-date">{{ article.published_at[:10] if article.published_at else 'Recent' }}</span>
+                        {% if article.source_url %}
+                        <span class="card-source">🔗 Read Full Article</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% else %}
+    <section class="empty-state">
+        <p>🛸 No news articles yet. News will be fetched automatically — check back soon!</p>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

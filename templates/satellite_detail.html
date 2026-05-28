@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% set page_title = satellite.name %}
+{% set page_description = 'Learn about ' + satellite.name + ' — ' + satellite.description[:100] %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('satellites') }}" class="back-link">← Back to Satellites</a>
+
+    <!-- Hero Image -->
+    <div class="detail-hero">
+        <img src="{{ satellite.image_url }}" alt="{{ satellite.name }}"
+             onerror="this.style.background='linear-gradient(135deg, #1e293b, #334155)';">
+        <h2 class="hero-title">{{ satellite.name }}</h2>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="detail-content">
+        <div class="detail-description">
+            <h3>About {{ satellite.name }}</h3>
+            <p>{{ satellite.description }}</p>
+        </div>
+
+        <div class="detail-stats">
+            <div class="stat-card">
+                <div class="stat-label">Status</div>
+                <div class="stat-value">
+                    <span class="badge {{ 'badge-active' if satellite.status == 'Active' else 'badge-completed' }}" style="font-size: 0.85rem;">
+                        {{ satellite.status }}
+                    </span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Launch Date</div>
+                <div class="stat-value">{{ satellite.launch_date or 'Unknown' }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Space Agency</div>
+                <div class="stat-value">{{ satellite.agency }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Orbit Type</div>
+                <div class="stat-value">{{ satellite.orbit_type or 'N/A' }}</div>
+            </div>
+            {% if satellite.planet_name %}
+            <div class="stat-card">
+                <div class="stat-label">Orbiting Planet</div>
+                <div class="stat-value">
+                    <a href="{{ url_for('planet_detail', planet_id=satellite.planet_id) }}" 
+                       style="color: var(--accent-cyan); text-decoration: none;">
+                        🪐 {{ satellite.planet_name }}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,446 @@
+{% extends 'base.html' %}
+{% set page_title = 'ISS Live View' %}
+{% set page_description = 'Track the International Space Station in real-time and watch live HD video from space.' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/iss_live.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>🛰️ ISS LIVE VIEW</h2>
+        <p class="subtitle">Track the International Space Station in real-time and watch live HD video from orbit.</p>
+    </div>
+
+    <div class="iss-wrapper">
+        <!-- Top Section: Map + Video -->
+        <div class="iss-main">
+            <!-- ISS Tracker Map -->
+            <div class="iss-map-section">
+                <div class="section-header">
+                    <h3>📍 Live ISS Position</h3>
+                    <span class="live-badge">● LIVE</span>
+                </div>
+                <div class="iss-map-container" id="issMapContainer">
+                    <img id="issMapImage" class="iss-map-bg" src="https://eoimages.gsfc.nasa.gov/images/imagerecords/79000/79765/dnb_land_ocean_ice.2012.3600x1800.jpg" alt="Earth at Night">
+                    <canvas id="issCanvas"></canvas>
+                    <!-- HUD Overlay -->
+                    <div class="iss-hud">
+                        <div class="hud-left">
+                            <span class="hud-label">LAT</span>
+                            <span class="hud-value" id="issLat">--°</span>
+                        </div>
+                        <div class="hud-center">
+                            <span class="hud-orbit-label">ORBIT #</span>
+                            <span class="hud-orbit-val" id="issOrbitNum">--</span>
+                        </div>
+                        <div class="hud-right">
+                            <span class="hud-label">LON</span>
+                            <span class="hud-value" id="issLon">--°</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Video Feed -->
+            <div class="iss-video-section">
+                <div class="section-header">
+                    <h3>🎥 Live Video from ISS</h3>
+                    <span class="live-badge">● STREAMING</span>
+                </div>
+                <div class="iss-video-container">
+                    <iframe
+                        id="issVideoFrame"
+                        src="https://www.youtube.com/embed/uwXgcTc8oY8?autoplay=1&mute=1&rel=0&modestbranding=1"
+                        title="ISS Live Stream - Earth View"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen>
+                    </iframe>
+                    <div class="video-fallback" id="videoFallback" style="display:none;">
+                        <div class="fallback-icon">📡</div>
+                        <p>Live stream temporarily unavailable</p>
+                        <a href="https://www.youtube.com/live/uwXgcTc8oY8" target="_blank" class="fallback-link">
+                            Watch on YouTube →
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ISS Stats Cards -->
+        <div class="iss-stats-bar">
+            <div class="iss-stat-card">
+                <div class="isc-icon" style="background:rgba(59,130,246,0.1);">🌍</div>
+                <div class="isc-data">
+                    <div class="isc-value" id="issAlt">~408 km</div>
+                    <div class="isc-label">Altitude</div>
+                </div>
+            </div>
+            <div class="iss-stat-card">
+                <div class="isc-icon" style="background:rgba(16,185,129,0.1);">⚡</div>
+                <div class="isc-data">
+                    <div class="isc-value" id="issSpeed">27,600 km/h</div>
+                    <div class="isc-label">Orbital Speed</div>
+                </div>
+            </div>
+            <div class="iss-stat-card">
+                <div class="isc-icon" style="background:rgba(139,92,246,0.1);">🔄</div>
+                <div class="isc-data">
+                    <div class="isc-value" id="issOrbitalPeriod">~92 min</div>
+                    <div class="isc-label">Orbital Period</div>
+                </div>
+            </div>
+            <div class="iss-stat-card">
+                <div class="isc-icon" style="background:rgba(236,72,153,0.1);">⏱️</div>
+                <div class="isc-data">
+                    <div class="isc-value" id="issMissionDays">--</div>
+                    <div class="isc-label">Days in Orbit</div>
+                </div>
+            </div>
+            <div class="iss-stat-card">
+                <div class="isc-icon" style="background:rgba(245,158,11,0.1);">🧑‍🚀</div>
+                <div class="isc-data">
+                    <div class="isc-value" id="issCrew">~7</div>
+                    <div class="isc-label">Crew Members</div>
+                </div>
+            </div>
+            <div class="iss-stat-card">
+                <div class="isc-icon" style="background:rgba(34,211,238,0.1);">🌅</div>
+                <div class="isc-data">
+                    <div class="isc-value" id="issSunrises">~16 / day</div>
+                    <div class="isc-label">Sunrises per Day</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ISS Info Panel -->
+        <div class="iss-info-bar">
+            <div class="info-card">
+                <h4>🏗️ About the ISS</h4>
+                <p>The International Space Station is the largest modular space station in low Earth orbit. A joint project of NASA, Roscosmos, ESA, JAXA, and CSA, it has been continuously occupied since November 2000.</p>
+            </div>
+            <div class="info-card">
+                <h4>📡 Tracking Data</h4>
+                <p>ISS position is updated every 5 seconds using real-time orbital data. The station orbits Earth approximately 16 times per day at an inclination of 51.6°, allowing it to pass over 90% of the inhabited world.</p>
+            </div>
+            <div class="info-card">
+                <h4>🎥 Live Feed</h4>
+                <p>The HD Earth Viewing Experiment streams live video from cameras mounted on the ISS exterior. During orbital night or signal loss, the screen may appear dark — the station is simply passing over the night side of Earth.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ═══════════════════════════════════════════════════
+// ISS LIVE TRACKER — Real-time Position on 2D Map
+// ═══════════════════════════════════════════════════
+
+const canvas = document.getElementById('issCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('issMapContainer');
+
+// ── Canvas Setup ──────────────────────────────────
+
+function resize() {
+    const rect = container.getBoundingClientRect();
+    const dpr = window.devicePixelRatio;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const W = () => canvas.width / window.devicePixelRatio;
+const H = () => canvas.height / window.devicePixelRatio;
+
+// ── ISS State ─────────────────────────────────────
+
+let issLat = 0;
+let issLon = 0;
+let issTrail = []; // store past positions for ground track
+const MAX_TRAIL = 200;
+
+// Simulated ISS orbit (used between API updates for smooth animation)
+let simLat = 0, simLon = 0;
+let lastApiUpdate = 0;
+let apiLat = 0, apiLon = 0;
+let prevApiLat = 0, prevApiLon = 0;
+
+// ISS orbital parameters for simulation
+const ISS_INC = 51.6; // degrees
+const ISS_PERIOD = 92.68 * 60; // seconds
+const ISS_ANGULAR_RATE = 360 / ISS_PERIOD; // deg/sec
+let simPhase = 0;
+let simTime = Date.now() / 1000;
+
+// ── Fetch ISS Position ────────────────────────────
+
+async function fetchISSPosition() {
+    try {
+        const response = await fetch('http://api.open-notify.org/iss-now.json');
+        const data = await response.json();
+        if (data.message === 'success') {
+            prevApiLat = apiLat;
+            prevApiLon = apiLon;
+            apiLat = parseFloat(data.iss_position.latitude);
+            apiLon = parseFloat(data.iss_position.longitude);
+            lastApiUpdate = Date.now();
+
+            // Update display values
+            document.getElementById('issLat').textContent =
+                Math.abs(apiLat).toFixed(2) + '°' + (apiLat >= 0 ? ' N' : ' S');
+            document.getElementById('issLon').textContent =
+                Math.abs(apiLon).toFixed(2) + '°' + (apiLon >= 0 ? ' E' : ' W');
+
+            // Add to trail
+            issTrail.push({ lat: apiLat, lon: apiLon });
+            if (issTrail.length > MAX_TRAIL) issTrail.shift();
+        }
+    } catch (e) {
+        // Use simulation fallback
+        console.log('ISS API unavailable, using simulation');
+    }
+}
+
+// Initial fetch + interval
+fetchISSPosition();
+setInterval(fetchISSPosition, 5000);
+
+// ── Simulate ISS position between API calls ───────
+
+function getSimulatedISS(t) {
+    // Use orbital mechanics to interpolate between API updates
+    const elapsed = (Date.now() - lastApiUpdate) / 1000;
+
+    if (lastApiUpdate > 0 && elapsed < 10) {
+        // Smooth interpolation from last known position
+        const lonRate = 360 / ISS_PERIOD; // degrees per second eastward
+        const earthRotRate = 360 / 86400; // Earth rotation
+        const netLonRate = lonRate - earthRotRate; // ISS ground track longitude rate
+
+        // Simple linear interpolation for smooth motion
+        const lat = apiLat + Math.sin(elapsed * 0.02) * 0.5; // slight oscillation
+        const lon = apiLon + elapsed * (360 / ISS_PERIOD - 360 / 86400) * Math.cos(apiLat * Math.PI / 180);
+
+        return {
+            lat: Math.max(-ISS_INC, Math.min(ISS_INC, lat)),
+            lon: ((lon + 540) % 360) - 180
+        };
+    }
+
+    // Full simulation fallback
+    const phase = (t * ISS_ANGULAR_RATE) % 360;
+    const lat = ISS_INC * Math.sin(phase * Math.PI / 180);
+    const lon = ((phase - t * (360 / 86400) + 180) % 360) - 180;
+    return { lat, lon };
+}
+
+// ── Draw 2D Equirectangular Map ───────────────────
+
+function lonLatToXY(lon, lat, w, h, padX, padY) {
+    const x = padX + ((lon + 180) / 360) * (w - 2 * padX);
+    const y = padY + ((90 - lat) / 180) * (h - 2 * padY);
+    return [x, y];
+}
+
+function drawMap(t) {
+    const w = W(), h = H();
+    const padX = 0, padY = 0;
+
+    // Clear canvas (transparent — real map image shows through)
+    ctx.clearRect(0, 0, w, h);
+
+    // ── Subtle grid overlay ──
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.08)';
+    ctx.lineWidth = 0.5;
+
+    for (let lat = -60; lat <= 60; lat += 30) {
+        ctx.beginPath();
+        const [x1, y1] = lonLatToXY(-180, lat, w, h, padX, padY);
+        const [x2, y2] = lonLatToXY(180, lat, w, h, padX, padY);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+    for (let lon = -180; lon <= 180; lon += 30) {
+        ctx.beginPath();
+        const [x1, y1] = lonLatToXY(lon, -90, w, h, padX, padY);
+        const [x2, y2] = lonLatToXY(lon, 90, w, h, padX, padY);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+    }
+
+    // Equator (slightly brighter)
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.15)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    const [eqX1, eqY1] = lonLatToXY(-180, 0, w, h, padX, padY);
+    const [eqX2, eqY2] = lonLatToXY(180, 0, w, h, padX, padY);
+    ctx.moveTo(eqX1, eqY1);
+    ctx.lineTo(eqX2, eqY2);
+    ctx.stroke();
+
+    // ── ISS Inclination Band ──
+    const [, bandTop] = lonLatToXY(0, ISS_INC, w, h, padX, padY);
+    const [, bandBot] = lonLatToXY(0, -ISS_INC, w, h, padX, padY);
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.04)';
+    ctx.fillRect(0, bandTop, w, bandBot - bandTop);
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.12)';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(0, bandTop); ctx.lineTo(w, bandTop); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, bandBot); ctx.lineTo(w, bandBot); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ── Ground Track Trail ──
+    if (issTrail.length > 1) {
+        // Glow trail
+        ctx.lineWidth = 3;
+        for (let i = 1; i < issTrail.length; i++) {
+            const prev = issTrail[i - 1];
+            const curr = issTrail[i];
+            if (Math.abs(curr.lon - prev.lon) > 100) continue;
+            const alpha = (i / issTrail.length) * 0.2;
+            ctx.strokeStyle = `rgba(59, 130, 246, ${alpha})`;
+            ctx.beginPath();
+            const [px, py] = lonLatToXY(prev.lon, prev.lat, w, h, padX, padY);
+            const [cx, cy] = lonLatToXY(curr.lon, curr.lat, w, h, padX, padY);
+            ctx.moveTo(px, py);
+            ctx.lineTo(cx, cy);
+            ctx.stroke();
+        }
+        // Sharp trail
+        ctx.lineWidth = 1.5;
+        for (let i = 1; i < issTrail.length; i++) {
+            const prev = issTrail[i - 1];
+            const curr = issTrail[i];
+            if (Math.abs(curr.lon - prev.lon) > 100) continue;
+            const alpha = (i / issTrail.length) * 0.7;
+            ctx.strokeStyle = `rgba(96, 165, 250, ${alpha})`;
+            ctx.beginPath();
+            const [px, py] = lonLatToXY(prev.lon, prev.lat, w, h, padX, padY);
+            const [cx, cy] = lonLatToXY(curr.lon, curr.lat, w, h, padX, padY);
+            ctx.moveTo(px, py);
+            ctx.lineTo(cx, cy);
+            ctx.stroke();
+        }
+    }
+
+    // ── ISS Position ──
+    const issPos = getSimulatedISS(t);
+    const [ix, iy] = lonLatToXY(issPos.lon, issPos.lat, w, h, padX, padY);
+
+    // Outer glow
+    const glowR = 24 + Math.sin(t * 2) * 4;
+    const glow = ctx.createRadialGradient(ix, iy, 4, ix, iy, glowR);
+    glow.addColorStop(0, 'rgba(239, 68, 68, 0.45)');
+    glow.addColorStop(0.4, 'rgba(239, 68, 68, 0.15)');
+    glow.addColorStop(1, 'rgba(239, 68, 68, 0)');
+    ctx.beginPath();
+    ctx.arc(ix, iy, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Pulsing ring
+    const pulsePhase = (t * 1.5) % 2;
+    if (pulsePhase < 1.5) {
+        const pr = 10 + pulsePhase * 20;
+        const pa = (1 - pulsePhase / 1.5) * 0.6;
+        ctx.beginPath();
+        ctx.arc(ix, iy, pr, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(239, 68, 68, ${pa})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // ISS marker
+    ctx.beginPath();
+    ctx.arc(ix, iy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // ISS inner dot
+    ctx.beginPath();
+    ctx.arc(ix, iy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    // Label background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath();
+    ctx.roundRect(ix + 10, iy - 16, 80, 24, 4);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // ISS Label
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '700 10px "Space Mono", monospace';
+    ctx.fillText('🛰️ ISS', ix + 15, iy - 2);
+
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
+    ctx.font = '7px "Space Mono", monospace';
+    const posText = Math.abs(issPos.lat).toFixed(1) + '°' + (issPos.lat >= 0 ? 'N' : 'S') +
+                    ', ' + Math.abs(issPos.lon).toFixed(1) + '°' + (issPos.lon >= 0 ? 'E' : 'W');
+    ctx.fillText(posText, ix + 15, iy + 8);
+
+    // ── City Markers ──
+    const cities = [
+        [-74, 40.7, 'NYC'], [0, 51.5, 'LON'], [37.6, 55.8, 'MOW'],
+        [139.7, 35.7, 'TYO'], [151.2, -33.9, 'SYD'], [-43.2, -22.9, 'RIO'],
+        [77.2, 28.6, 'DEL'], [121.5, 31.2, 'SHA'], [-118.2, 34.1, 'LAX'],
+    ];
+    cities.forEach(([cLon, cLat, label]) => {
+        const [cx, cy] = lonLatToXY(cLon, cLat, w, h, padX, padY);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.6)';
+        ctx.fill();
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.5)';
+        ctx.font = '6px "Space Mono", monospace';
+        ctx.fillText(label, cx + 4, cy - 3);
+    });
+}
+
+// ── Animation Loop ────────────────────────────────
+
+const startTime = Date.now() / 1000;
+
+function frame() {
+    const t = Date.now() / 1000 - startTime;
+    drawMap(t);
+    requestAnimationFrame(frame);
+}
+frame();
+
+// ── Stats Updates ─────────────────────────────────
+
+function updateISSStats() {
+    const now = new Date();
+    const issLaunch = new Date('1998-11-20');
+    const days = Math.floor((now - issLaunch) / 86400000);
+    document.getElementById('issMissionDays').textContent = days.toLocaleString();
+
+    // Orbit number (approximate)
+    const orbitsPerDay = 15.54;
+    const totalOrbits = Math.floor(days * orbitsPerDay);
+    document.getElementById('issOrbitNum').textContent = totalOrbits.toLocaleString();
+}
+updateISSStats();
+setInterval(updateISSStats, 60000);
+
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% set page_title = 'Home' %}
+{% set page_description = 'Singularity Dashboard — Latest space news, planet discoveries, and satellite updates.' %}
+
+{% block content %}
+<div class="container">
+    <section class="hero">
+        <h2>EXPLORE THE COSMOS</h2>
+        <p>Discover the latest space news, dive into planetary science, and track satellites orbiting our solar system and beyond.</p>
+        <div class="hero-actions">
+            <a href="{{ url_for('planets') }}" class="btn btn-primary">🪐 Explore Planets</a>
+            <a href="{{ url_for('satellites') }}" class="btn btn-outline">🛰️ View Satellites</a>
+        </div>
+    </section>
+
+    <section style="margin-bottom: 3rem;">
+        <div class="section-header">
+            <h3>🪐 Solar System</h3>
+            <a href="{{ url_for('planets') }}">View All →</a>
+        </div>
+        <div class="planet-scroll">
+            {% for planet in planets %}
+            <a href="{{ url_for('planet_detail', planet_id=planet.id) }}" class="planet-mini-card">
+                <img src="{{ planet.image_url }}" alt="{{ planet.name }}" loading="lazy"
+                     onerror="this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;70&quot; height=&quot;70&quot; viewBox=&quot;0 0 70 70&quot;><circle cx=&quot;35&quot; cy=&quot;35&quot; r=&quot;30&quot; fill=&quot;%23334155&quot;/><text x=&quot;35&quot; y=&quot;42&quot; text-anchor=&quot;middle&quot; fill=&quot;%2394a3b8&quot; font-size=&quot;28&quot;>🪐</text></svg>'">
+                <span>{{ planet.name }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Latest News -->
+    <section style="margin-bottom: 3rem;">
+        <div class="section-header">
+            <h3>📰 Latest Space News</h3>
+            <a href="{{ url_for('news_page') }}">View All →</a>
+        </div>
+        <div class="grid-3">
+            {% for article in news %}
+            <a href="{{ article.source_url or '#' }}" target="_blank" rel="noopener noreferrer" class="news-card-link">
+            <article class="card news-card">
+                <div class="card-img-wrapper">
+                    <img class="card-img" src="{{ article.image_url }}" alt="{{ article.title }}" loading="lazy"
+                         onerror="this.style.background='linear-gradient(135deg, #1e293b, #334155)'; this.style.display='block';">
+                </div>
+                <div class="card-body">
+                    <span class="badge badge-category">{{ article.category }}</span>
+                    <h3 style="margin-top: 0.5rem;">{{ article.title }}</h3>
+                    <p>{{ article.content[:150] }}...</p>
+                    <div class="card-meta">
+                        <span class="card-date">{{ article.published_at[:10] if article.published_at else 'Recent' }}</span>
+                        {% if article.source_url %}
+                        <span class="card-source">🔗 Read Source</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}

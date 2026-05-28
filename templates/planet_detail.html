@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% set page_title = planet.name %}
+{% set page_description = 'Explore ' + planet.name + ' — ' + planet.description[:100] %}
+
+{% block content %}
+<div class="container">
+    <a href="{{ url_for('planets') }}" class="back-link">← Back to Planets</a>
+
+    <!-- Hero Image -->
+    <div class="detail-hero">
+        <img src="{{ planet.image_url }}" alt="{{ planet.name }}" 
+             onerror="this.style.background='linear-gradient(135deg, #1e293b, #334155)';">
+        <h2 class="hero-title">{{ planet.name }}</h2>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="detail-content">
+        <div class="detail-description">
+            <h3>About {{ planet.name }}</h3>
+            <p>{{ planet.description }}</p>
+
+            {% if planet.fun_fact %}
+            <div class="fun-fact">
+                <h4>🌟 Fun Fact</h4>
+                <p>{{ planet.fun_fact }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="detail-stats">
+            <div class="stat-card">
+                <div class="stat-label">Distance from Sun</div>
+                <div class="stat-value">{{ planet.distance_from_sun }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Diameter</div>
+                <div class="stat-value">{{ planet.diameter }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Number of Moons</div>
+                <div class="stat-value">{{ planet.moons_count }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Orbital Period</div>
+                <div class="stat-value">{{ planet.orbital_period }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Type</div>
+                <div class="stat-value">{{ planet.type }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Temperature</div>
+                <div class="stat-value">{{ planet.temperature }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Gravity</div>
+                <div class="stat-value">{{ planet.gravity }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Satellites -->
+    {% if satellites %}
+    <section class="related-section">
+        <h3>🛰️ Satellites Orbiting {{ planet.name }}</h3>
+        <div class="grid-3">
+            {% for sat in satellites %}
+            <a href="{{ url_for('satellite_detail', satellite_id=sat.id) }}" style="text-decoration: none; color: inherit;">
+                <div class="card">
+                    <div class="card-body">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <h3>{{ sat.name }}</h3>
+                            <span class="badge {{ 'badge-active' if sat.status == 'Active' else 'badge-completed' }}">{{ sat.status }}</span>
+                        </div>
+                        <p>{{ sat.description[:100] }}...</p>
+                        <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
+                            🏛️ {{ sat.agency }}
+                        </div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

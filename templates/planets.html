@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% set page_title = 'Planets' %}
+{% set page_description = 'Explore all 8 planets of our solar system — from Mercury to Neptune.' %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>🪐 THE PLANETS</h2>
+        <p class="subtitle">Journey through the 8 worlds of our solar system. Click on any planet to discover its secrets.</p>
+    </div>
+
+    <div class="grid-3">
+        {% for planet in planets %}
+        <a href="{{ url_for('planet_detail', planet_id=planet.id) }}" style="text-decoration: none; color: inherit;">
+            <div class="card" id="planet-card-{{ planet.id }}">
+                <div class="card-img-wrapper">
+                    <img class="card-img" src="{{ planet.image_url }}" alt="{{ planet.name }}" loading="lazy"
+                         onerror="this.style.background='linear-gradient(135deg, #1e293b, #334155)'; this.style.height='200px';">
+                </div>
+                <div class="card-body">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <h3>{{ planet.name }}</h3>
+                        <span class="badge badge-category">{{ planet.type }}</span>
+                    </div>
+                    <p>{{ planet.description[:120] }}...</p>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-muted);">
+                            🌙 <span style="font-family: 'Space Mono', monospace;">{{ planet.moons_count }} moons</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-muted);">
+                            📏 <span style="font-family: 'Space Mono', monospace;">{{ planet.diameter }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

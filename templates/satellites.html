@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% set page_title = 'Satellites' %}
+{% set page_description = 'Explore famous satellites, space probes, and telescopes orbiting Earth and beyond.' %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>🛰️ SATELLITES & PROBES</h2>
+        <p class="subtitle">From the International Space Station to Voyager — explore humanity's eyes and ears in space.</p>
+    </div>
+
+    <div class="grid-3">
+        {% for sat in satellites %}
+        <a href="{{ url_for('satellite_detail', satellite_id=sat.id) }}" style="text-decoration: none; color: inherit;">
+            <div class="card" id="satellite-card-{{ sat.id }}">
+                <div class="card-img-wrapper">
+                    <img class="card-img" src="{{ sat.image_url }}" alt="{{ sat.name }}" loading="lazy"
+                         onerror="this.style.background='linear-gradient(135deg, #1e293b, #334155)'; this.style.height='200px';">
+                </div>
+                <div class="card-body">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <h3 style="font-size: 0.95rem;">{{ sat.name }}</h3>
+                        <span class="badge {{ 'badge-active' if sat.status == 'Active' else 'badge-completed' }}">{{ sat.status }}</span>
+                    </div>
+                    <p>{{ sat.description[:100] }}...</p>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-muted);">
+                            🏛️ <span>{{ sat.agency }}</span>
+                        </div>
+                        {% if sat.planet_name %}
+                        <div style="display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-muted);">
+                            🪐 <span>{{ sat.planet_name }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

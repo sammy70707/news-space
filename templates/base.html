@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{{ page_description|default('Singularity - Your cosmic gateway to planets, satellites, and space news.') }}">
+    <title>Singularity — {{ page_title|default('Explore') }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="star-field" id="starField"></div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <a href="{{ url_for('home') }}" class="nav-brand">
+            <span class="logo">🚀</span>
+            <h1>SINGULARITY</h1>
+        </a>
+        <ul class="nav-links">
+            <li><a href="{{ url_for('home') }}" class="{{ 'active' if request.endpoint == 'home' }}">
+                🏠 <span class="nav-text">Home</span>
+            </a></li>
+            <li><a href="{{ url_for('planets') }}" class="{{ 'active' if request.endpoint in ['planets', 'planet_detail'] }}">
+                🪐 <span class="nav-text">Planets</span>
+            </a></li>
+            <li><a href="{{ url_for('satellites') }}" class="{{ 'active' if request.endpoint in ['satellites', 'satellite_detail'] }}">
+                🛰️ <span class="nav-text">Satellites</span>
+            </a></li>
+            <li><a href="{{ url_for('news_page') }}" class="{{ 'active' if request.endpoint == 'news_page' }}">
+                📰 <span class="nav-text">News</span>
+            </a></li>
+            <li><a href="{{ url_for('tracker') }}" class="{{ 'active' if request.endpoint == 'tracker' }}">
+                📡 <span class="nav-text">Tracker</span>
+            </a></li>
+            <li><a href="{{ url_for('solar_tracker') }}" class="{{ 'active' if request.endpoint == 'solar_tracker' }}">
+                𖣠 <span class="nav-text">Solar Tracker</span>
+            </a></li>
+            <li><a href="{{ url_for('iss_live') }}" class="{{ 'active' if request.endpoint == 'iss_live' }}">
+                🛰️ <span class="nav-text">ISS Live View</span>
+            </a></li>
+            <li><a href="{{ url_for('logout') }}" class="logout-btn">
+                🚪 <span class="nav-text">Logout</span>
+            </a></li>
+        </ul>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-msg {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>🌌 Built with 💜 by <span>Singularity</span> · Exploring the cosmos since 2026 · Welcome, {{ session.get('username', 'Explorer') }}!</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Generate star field
+        const starField = document.getElementById('starField');
+        for (let i = 0; i < 120; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.setProperty('--dur', (2 + Math.random() * 5) + 's');
+            star.style.animationDelay = Math.random() * 4 + 's';
+            star.style.width = (1 + Math.random() * 2) + 'px';
+            star.style.height = star.style.width;
+            starField.appendChild(star);
+        }
+
+        // Auto-dismiss flash messages
+        setTimeout(() => {
+            document.querySelectorAll('.flash-msg').forEach(el => {
+                el.style.transition = 'opacity 0.5s';
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 500);
+            });
+        }, 4000);
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
