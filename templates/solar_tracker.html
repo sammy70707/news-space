@@ -277,6 +277,7 @@ const probes = [
     agency: "{{ sat.agency|replace('"', '\\"') }}",
     launched: "{{ sat.launch_date or 'N/A' }}",
     {% if 'Interstellar' in (sat.orbit_type or '') %}
+    au: {{ 160 if 'Voyager 1' in sat.name else 135 if 'Voyager 2' in sat.name else 90 }},
     type: 'interstellar',
     {% elif 'Kuiper' in (sat.orbit_type or '') %}
     au: 57,
